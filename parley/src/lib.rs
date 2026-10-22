@@ -108,6 +108,7 @@ extern crate std;
 
 pub use fontique;
 
+mod advance_hook;
 mod analysis;
 mod bidi;
 mod break_overrides;
@@ -129,6 +130,7 @@ pub mod style;
 #[cfg(test)]
 mod tests;
 
+pub use advance_hook::{GlyphAdvanceHook, set_glyph_advance_hook};
 pub use linebender_resource_handle::FontData;
 pub use util::BoundingBox;
 

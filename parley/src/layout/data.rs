@@ -482,6 +482,14 @@ impl<B: Brush> LayoutData<B> {
         }
         let glyph_positions = glyph_buffer.glyph_positions();
         let scale_factor = font_size / units_per_em;
+        // Foldaria (B099): the renderer's advances, keeping what shaping added to the natural
+        // advance (kerning), rounded so whole-pixel advances stay whole.
+        let hook = crate::advance_hook::glyph_advance_hook();
+        let font = &self.fonts[font_index];
+        let advance_of = |glyph_id: u32, shaped: f32| -> f32 {
+            hook.and_then(|hook| hook(font, font_size, &synthesis, glyph_id as u16))
+                .map_or(shaped, |(drawn, natural)| drawn + (shaped - natural).round())
+        };
         let cluster_range_start = self.clusters.len();
         let is_rtl = bidi_level & 1 == 1;
         if !is_rtl {
@@ -490,6 +498,7 @@ impl<B: Brush> LayoutData<B> {
                 &mut self.clusters,
                 &mut self.glyphs,
                 scale_factor,
+                &advance_of,
                 glyph_infos,
                 glyph_positions,
                 char_infos,
@@ -501,6 +510,7 @@ impl<B: Brush> LayoutData<B> {
                 &mut self.clusters,
                 &mut self.glyphs,
                 scale_factor,
+                &advance_of,
                 glyph_infos,
                 glyph_positions,
                 char_infos,
@@ -653,6 +663,7 @@ fn process_clusters<I: Iterator<Item = (usize, char)>>(
     clusters: &mut Vec<ClusterData>,
     glyphs: &mut Vec<Glyph>,
     scale_factor: f32,
+    advance_of: &dyn Fn(u32, f32) -> f32,
     glyph_infos: &[harfrust::GlyphInfo],
     glyph_positions: &[harfrust::GlyphPosition],
     char_infos: &[(CharInfo, u16)],
@@ -785,7 +796,7 @@ fn process_clusters<I: Iterator<Item = (usize, char)>>(
             x: (glyph_pos.x_offset as f32) * scale_factor,
             // Convert from font space (Y-up) to layout space (Y-down)
             y: -(glyph_pos.y_offset as f32) * scale_factor,
-            advance: (glyph_pos.x_advance as f32) * scale_factor,
+            advance: advance_of(glyph_info.glyph_id, (glyph_pos.x_advance as f32) * scale_factor),
         };
         cluster_advance += glyph.advance;
         // Push any pending glyph. If it was a zero-offset, single glyph cluster, it would
